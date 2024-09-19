@@ -1,81 +1,67 @@
 ##SECONDARY ANALYSIS:
- 
+
 # Installing packages needed:
-install.packages("tidyverse")
+install.packages(c("tidyverse","dplyr","ggplot2","scales","sf","here","readr","data.table","readxl"))
+
 library(tidyverse)
- 
-install.packages("dplyr")
 library(dplyr)
- 
-install.packages("ggplot2")
 library(ggplot2)
- 
-install.packages("scales")
 library(scales)
- 
-install.packages("sf")
 library(sf)
- 
-install.packages("here")
 library(here)
- 
-install.packages("readr")
 library(readr)
- 
-install.packages("data.table")
 library(data.table)
- 
+
 # NEW DATASET TO BE WORKING FROM,
 # Originally they were 26 organisations in the unlabelled region column, and 1 NA.
 # Now using the new dataset on mergers there are 4, on thex-axis labelled region they come up as 'NA'kingdirectory = setwd("C:/Users/K22007671/OneDrive - King's College London")
 getwd()
-install.packages("readxl")
 library(readxl)
 Lithium_SCMD= read_excel('scmd_lithium-2.xlsx')
- 
+
 New_Missingregions<-Lithium_SCMD %>%
   filter(is.na(region)) %>%
   group_by(ods_name) %>%
   summarise(N=n())
- 
+
 print(New_Missingregions)
 # Originally they were 26 organisations in the unlabelled region column, and 1 NA.
 # Now using the new dataset on mergers there are 4, on thex-axis labelled region they come up as 'NA'
- 
+
 # Cleaning up dataset
 # Manually adding the regions to the organisations (4) that come up in the NA region column
 Lithium_SCMD <- Lithium_SCMD %>%
   mutate(region = ifelse(ods_name == "Black Country Healthcare NHS Foundation Trust" & is.na(region),
                          "West Midlands",
                          region))
- 
+
 Lithium_SCMD <- Lithium_SCMD %>%
   mutate(region = ifelse(ods_name == "Bradford District Care NHS Foundation Trust" & is.na(region),
                          "Yorkshire and The Humber",
                          region))
- 
+
 Lithium_SCMD <- Lithium_SCMD %>%
   mutate(region = ifelse(ods_name == "Camden and Islington NHS Foundation Trust" & is.na(region),
                          "London",
                          region))
- 
+
 Lithium_SCMD <- Lithium_SCMD %>%
   mutate(region = ifelse(ods_name == "Sheffield Health & Social Care NHS Foundation Trust" & is.na(region),
                          "Yorkshire and The Humber",
                          region))
- 
- 
+
+
 unique(Lithium_SCMD$region) # ALL organisations are now attributed to a region
- 
+
 #converting from date-time to date, will make plotting easier
 class(Lithium_SCMD$year_month) #[1] "POSIXct" "POSIXt"
- 
+
 Lithium_SCMD <- Lithium_SCMD %>%
   mutate(year_month = as.Date(year_month)) # converting to date from date-time
- 
+
 Lithium_SCMD <- Lithium_SCMD %>%
   filter(indicative_cost >= 0)
- 
+
 # changing from 9 to 7 regions, beause the primary care dataset has 7 regions:
 # Step 1: Merging specific regions: North East and Yorkshire and the Humber and the east and west midlands
 # Replace specific regions with broader region names
@@ -85,19 +71,17 @@ Lithium_SCMD$region_grouped <- with(Lithium_SCMD,
                                                   region)))
 View(Lithium_SCMD)
 unique(Lithium_SCMD$region_grouped)
- 
+
 # Removing ampoule from Lithium_SCMD$unit_dose_uom because lithium injectable is not used in secondary care Orla said
 unique(Lithium_SCMD$unit_dose_uom)
- 
+
 Lithium_SCMD <- Lithium_SCMD %>%
   filter(unit_dose_uom != "ampoule")
- 
+
 # Creating a quantity_mg column for regional analysis
-quantity_mg = Lithium_SCMD$strnt_nmrtr_val * Lithium_SCMD$quantity
- 
 Lithium_SCMD <- Lithium_SCMD %>%
-  mutate(quantity_mg = quantity_mg)
- 
+  mutate(quantity_mg = strnt_nmrtr_val * quantity)
+
 # Secondary care regional plots:
 # Regional plot, vtm_name: Lithium carbonate vs Citrate
 ggplot(Lithium_SCMD, aes(x = reorder(region_grouped, -quantity_mg), y = quantity_mg, fill = vtm_name)) +
@@ -109,7 +93,7 @@ ggplot(Lithium_SCMD, aes(x = reorder(region_grouped, -quantity_mg), y = quantity
   scale_y_continuous(labels = label_comma()) + 
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 90, hjust = 1))
- 
+
 # Regional plot, vmo_name: Lithium carbonate vs Citrate products
 ggplot(Lithium_SCMD, aes(x = reorder(region_grouped, quantity_mg), y = quantity_mg, fill = vmp_name)) +
   geom_bar(stat = "identity") +
@@ -120,7 +104,7 @@ ggplot(Lithium_SCMD, aes(x = reorder(region_grouped, quantity_mg), y = quantity_
   scale_y_continuous(labels = label_comma()) + 
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 90, hjust = 1))
- 
+
 # Organisation breakdown in MGs for Lithium Carbonate and Citrate:
 # PLOTTING top 50 organisations to help with readability:
 top_50_data <- Lithium_SCMD %>%
@@ -128,10 +112,10 @@ top_50_data <- Lithium_SCMD %>%
   summarise(total_quantity = sum(quantity_mg)) %>%
   arrange(desc(total_quantity)) %>%
   slice(1:50)
- 
+
 top_50_data <- top_50_data %>%
   inner_join(Lithium_SCMD, by = "ods_name")
- 
+
 # Plotting top 50 organisations: # Organisation breakdown in MGs for Lithium Carbonate and Citrate:
 ggplot(top_50_data, aes(x = reorder(ods_name, total_quantity), y = quantity_mg, fill = vtm_name)) +
   geom_bar(stat = "identity") +
@@ -142,7 +126,7 @@ ggplot(top_50_data, aes(x = reorder(ods_name, total_quantity), y = quantity_mg, 
   theme_minimal() +
   theme(axis.text.y = element_text(size = 0.25),
         axis.text.x = element_text(angle = 90, hjust = 1))
- 
+
 # Plotting top 50: Organisational breakdown in MGs for the products of Lithium citrate and carbonate:
 ggplot(top_50_data, aes(x = reorder(ods_name, total_quantity), y = quantity_mg, fill = vmp_name)) +
   geom_bar(stat = "identity") +
@@ -153,32 +137,35 @@ ggplot(top_50_data, aes(x = reorder(ods_name, total_quantity), y = quantity_mg, 
   theme_minimal() +
   theme(axis.text.y = element_text(size = 0.25),
         axis.text.x = element_text(angle = 90, hjust = 1))
- 
+
 # Secondary care Mapping plot, 2023 mg / population
 ################################################
 # NEW SHAPEFILE - it was in a python format so had to make RDS
 library(sf)
- 
+
 # Read the GeoJSON file
-geojson_file <- "/Users/K22007671/OneDrive - King's College London/Desktop/Research methods 1 2022/Represent/new_nuts_shp.txt"
+#geojson_file <- "/Users/K22007671/OneDrive - King's College London/Desktop/Research methods 1 2022/Represent/new_nuts_shp.txt"
+geojson_file <- here::here("new_nuts_shp.txt")
 geojson_data <- st_read(geojson_file)
- 
+
 # Save the object as an RDS file
-saveRDS(geojson_data, file = "/Users/K22007671/OneDrive - King's College London/Desktop/Research methods 1 2022/Represent/new_nuts_shp.rds")
- 
+#saveRDS(geojson_data, file = "/Users/K22007671/OneDrive - King's College London/Desktop/Research methods 1 2022/Represent/new_nuts_shp.rds")
+saveRDS(geojson_data, file = here::here("new_nuts_shp.rds"))
+
 # Load the RDS file
-nuts_shp <- readRDS( "/Users/K22007671/OneDrive - King's College London/Desktop/Research methods 1 2022/Represent/new_nuts_shp.rds")
+#nuts_shp <- readRDS( "/Users/K22007671/OneDrive - King's College London/Desktop/Research methods 1 2022/Represent/new_nuts_shp.rds")
+nuts_shp <- readRDS(here::here("new_nuts_shp.rds"))
 View(nuts_shp)
- 
+
 # Ensuring geometries are valid
 nuts_shp <- st_make_valid(nuts_shp)
 View(nuts_shp)
 ########################################################
- 
+
 # Secondary care Mapping plot, focusing on all of 2023 mg / population
 # getting the sum of mg per region
 unique(Lithium_SCMD$region_grouped)
- 
+
 lithium_df<-Lithium_SCMD %>%
   # getting the sum of mg per region
   group_by(region_grouped) %>%
@@ -191,11 +178,11 @@ lithium_df<-Lithium_SCMD %>%
     region_grouped=="Midlands"~"UKG",
     region_grouped=="South East"~"UKJ",
     region_grouped=="South West"~"UKK"),
-         region = as.factor(region_grouped)) %>%
+    region = as.factor(region_grouped)) %>%
   filter(!is.na(region_grouped))
- 
+
 View(lithium_df)
- 
+
 twenty_three <- Lithium_SCMD %>%
   filter(year_month %in% as.Date(c("2023-01-01",
                                    "2023-02-01",
@@ -209,24 +196,24 @@ twenty_three <- Lithium_SCMD %>%
                                    "2023-10-01",
                                    "2023-11-01",
                                    "2023-12-01")))
- 
- 
+
+
 View(twenty_three)
- 
+
 twenty_three <- twenty_three %>%
   mutate(twentythree_quantity_mg = strnt_nmrtr_val * quantity)
- 
+
 # Calculate the total mg of Lithium for each region in 22023
 total_mg_by_region <- twenty_three%>%
   group_by(region_grouped) %>%
   summarize(total_mg2023 = sum(twentythree_quantity_mg, na.rm = TRUE))
- 
+
 View(total_mg_by_region)
- 
+
 secondary_lithium_df <- lithium_df %>%
   mutate(total_mg_by_region)
- 
- 
+
+
 # Now adding population data to this dataset, that I got from population_data, estimates from ONS
 NorthEast_Yorkt_pop = 8224302
 NorthWest_pop = 7516113
@@ -235,8 +222,8 @@ east_pop = 6398497
 london_pop = 8866180
 SouthEast_pop = 9379833
 SouthWest_pop = 5764881
- 
- 
+
+
 secondary_lithium_df <- secondary_lithium_df %>%
   mutate(population = case_when(
     region == "North East & Yorkshire" ~ NorthEast_Yorkt_pop,
@@ -247,13 +234,13 @@ secondary_lithium_df <- secondary_lithium_df %>%
     region == "South East" ~ SouthEast_pop,
     region == "South West" ~ SouthWest_pop,
   ))
- 
+
 View(secondary_lithium_df)
- 
+
 secondary_lithium_df <- secondary_lithium_df %>%
   mutate(`mg/population(2023)` = total_mg2023 / population)
- 
- 
+
+
 # the names in the shape file and my regions in my lithium_df are different, so fixing this
 mapping_table <- tibble(
   name = c(
@@ -275,28 +262,28 @@ mapping_table <- tibble(
     "North East & Yorkshire"
   )
 )
- 
+
 library(dplyr)
- 
+
 # Join nuts_shp with the mapping table
 nuts_shp <- nuts_shp %>%
   left_join(mapping_table, by = "name")
- 
+
 # Join the datasets ~
 coverage_data <- nuts_shp %>%
   left_join(secondary_lithium_df, by = "region")  # Join using the correct column names
- 
+
 View(coverage_data)
- 
- 
+
+
 # Extract unique values for breaks and labels
 unique_values <- sort(unique(coverage_data$`mg/population(2023)`))
 breaks <- c(0, unique_values, max(unique_values, na.rm = TRUE) + 10)
 labels <- scales::label_number(breaks)
- 
+
 # Plot with specified color scale
 legend_labels <- c( "0" = "0",paste0(sort(round(secondary_lithium_df$`mg/population(2023)`, 1)), " mg/population"), "120" = "120")
- 
+
 coverage_plot <- coverage_data %>%
   ggplot(aes(geometry = geometry, fill = `mg/population(2023)`)) +
   geom_sf(lwd = 0.8, colour = 'black') +
@@ -321,10 +308,10 @@ coverage_plot <- coverage_data %>%
   guides(fill = guide_legend(title = "mg Lithium/ population")) +
   xlab("") +
   ylab("")
- 
+
 # Display the plot
 plot(coverage_plot)
- 
+
 # Acconpanying barplot: 2023/pop
 view(secondary_lithium_df)
 # ammended hist
@@ -342,9 +329,9 @@ hist = ggplot(secondary_lithium_df, aes(x = region_grouped, y = `mg/population(2
     plot.title = element_text(size = 12, face = "bold"), 
     plot.margin = margin(10, 10, 10, 10)  # Adjusting the plot margins for better spacing
   )
- 
+
 plot(hist)
- 
+
 # #  ######plot that is more focused on the last 6 months of 2023 for secondary care
 # Filter for the last 6 months of 2023 in secondary care dataset
 secondary_six_months <- Lithium_SCMD %>%
@@ -354,19 +341,19 @@ secondary_six_months <- Lithium_SCMD %>%
                                    "2023-10-01",
                                    "2023-11-01",
                                    "2023-12-01")))
- 
+
 # Calculate the total mg of Lithium for each region for the last 6 months
 secondary_total_mg_six_months <- secondary_six_months %>%
   mutate(twentythree_quantity_mg = strnt_nmrtr_val * quantity) %>%
   group_by(region_grouped) %>%
   summarize(total_mg_six_months = sum(twentythree_quantity_mg, na.rm = TRUE))
- 
+
 # Add population data to the secondary care dataset
 secondary_lithium_df_six_months <- secondary_total_mg_six_months %>%
   left_join(secondary_lithium_df, by = "region_grouped") %>%
   mutate(`mg/population(2023)` = total_mg_six_months / population)
- 
- 
+
+
 # Create the bar plot for secondary care using purple colors
 hist_secondary <- ggplot(secondary_lithium_df_six_months, aes(x = region_grouped, y = `mg/population(2023)`)) +
   geom_col(fill = "#9b59b6", color = "#d1a3ff") +  # Purple fill with light purple border
@@ -381,55 +368,53 @@ hist_secondary <- ggplot(secondary_lithium_df_six_months, aes(x = region_grouped
     plot.title = element_text(size = 12, face = "bold"),  # Title style
     plot.margin = margin(10, 10, 10, 10)  # Adjust plot margins
   )
- 
+
 plot(hist_secondary)
- 
+
 ##PRIMARY ANALYSIS:
-workingdirectory = setwd("C:/Users/K22007671/OneDrive - King's College London")
+#workingdirectory = setwd("C:/Users/K22007671/OneDrive - King's College London")
 PrimaryCare_Lithium= read.csv('df_primarycare.csv')
 unique(PrimaryCare_Lithium$month) # STARTS FROM APRIL 2019 LIKE THE scmd DATASET
- 
+
 # I need to link practice codes to regions
 Practise_codes= read.csv('practice_codes.csv')
- 
+
 # I NEED TO MERGE: PRACTICE of primarycare_lihtium to the column 'code' of practice codes
 # Creating a merged dataset so now I have practice codes and their associated region
 merged_data <- PrimaryCare_Lithium %>%
   left_join(Practise_codes, by = c("practice" = "code"))
- 
+
 View(merged_data)
 head(merged_data)
- 
+
 #strnt_nmrtr_val
 df_primarycare2= read.csv('df_primarycare2.csv')
 View(df_primarycare2)
- 
+
 PRIMARYCARE_dataset <- merge(merged_data,
                              df_primarycare2[, c("bnf_code", "strnt_nmrtr_val")],
                              by = "bnf_code",
                              all.x = TRUE)
- 
+
 View(PRIMARYCARE_dataset)
- 
+
 unique(PRIMARYCARE_dataset$setting)
 PRIMARYCARE_dataset <- subset(PRIMARYCARE_dataset, setting == 4) # So it just includes GPS
 View(PRIMARYCARE_dataset)
- 
- 
+
+
 # NOW I CAN CACULATE Quantity in mg of Lithium: because I have strnt_nmrtr_val and quantity
 # HOW i calculated it last time:
-quantity_mg = PRIMARYCARE_dataset$strnt_nmrtr_val *  PRIMARYCARE_dataset$quantity
- 
 PRIMARYCARE_dataset <- PRIMARYCARE_dataset %>%
-  mutate(quantity_mg = quantity_mg)
- 
+  mutate(quantity_mg = strnt_nmrtr_val * quantity)
+
 View(PRIMARYCARE_dataset)
- 
+
 # ADDING to the dataset/ cleaning up:
 # adding a chemical column, so I know whether it is, carbonate or citrate
 # Assuming 'bnf_name' is the column with the product names in your dataset
 library(dplyr)
- 
+
 PRIMARYCARE_dataset <- PRIMARYCARE_dataset %>%
   mutate(chemical = case_when(
     bnf_name %in% c("Camcolit 250 tablets",
@@ -451,15 +436,15 @@ PRIMARYCARE_dataset <- PRIMARYCARE_dataset %>%
                     "Priadel 520mg/5ml liquid") ~ "Lithium Citrate",
     TRUE ~ "Other"  # TO see if anything isn't attributed to the two groups
   ))
- 
+
 unique(PRIMARYCARE_dataset$chemical)
- 
+
 # Primary care, regional PLOTS, using regional_team
 unique(PRIMARYCARE_dataset$regional_team)
- 
+
 # adding a regions column:
 # Assuming your dataset is stored in a data frame called df
- 
+
 # Create a named vector for the mapping of regional_team to regions
 region_mapping <- c(
   "Y60" = "Midlands",
@@ -470,18 +455,18 @@ region_mapping <- c(
   "Y56" = "London",
   "Y58" = "South West"
 )
- 
+
 # Add the new 'regions' column by mapping the 'regional_team' column
 PRIMARYCARE_dataset$Region <- region_mapping[PRIMARYCARE_dataset$regional_team]
- 
+
 View(PRIMARYCARE_dataset)
- 
+
 unique(PRIMARYCARE_dataset$Region)
- 
+
 # Lithium carbonate VS citrate use regionally in primary care plot
 citrate_color <- "#1f77b4"    # Blue for Citrate
 carbonate_color <- "#ff7f0e"  # Orange for Carbonate
- 
+
 ggplot(PRIMARYCARE_dataset, aes(x = reorder(Region, quantity_mg), y = quantity_mg, fill = chemical)) +
   geom_bar(stat = "identity") +
   labs(title = "Primary care Regional breakdown of Lithium usage",
@@ -492,7 +477,7 @@ ggplot(PRIMARYCARE_dataset, aes(x = reorder(Region, quantity_mg), y = quantity_m
   scale_fill_manual(values = c("Lithium Citrate" = citrate_color, "Lithium Carbonate" = carbonate_color)) +
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 90, hjust = 1))
- 
+
 #  Plotting Lithium carbonate and citrate products used regionally
 ggplot(PRIMARYCARE_dataset, aes(x = reorder(Region, -quantity_mg), y = quantity_mg, fill = bnf_name)) +
   geom_bar(stat = "identity") +
@@ -507,7 +492,8 @@ ggplot(PRIMARYCARE_dataset, aes(x = reorder(Region, -quantity_mg), y = quantity_
   scale_y_continuous(labels = scales::label_comma()) + 
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 90, hjust = 1))
- 
+
+
 #  Plotting Lithium carbonate and citrate products used regionally - generric vs product
 #Classify BNF names into Generic or Branded
 PRIMARYCARE_dataset <- PRIMARYCARE_dataset %>%
@@ -534,7 +520,7 @@ ggplot(PRIMARYCARE_dataset, aes(x = reorder(Region, -quantity_mg), y = quantity_
   scale_y_continuous(labels =scales::label_comma()) +
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 90, hjust = 1))
- 
+
 ############################## NEW PCD mapping code for all of  2023 #######################
 # Mapping plot, primary care all of 2023 - I need tge mg for 2023 and the population data
 primary_lithium_df<-PRIMARYCARE_dataset %>%
@@ -551,10 +537,10 @@ primary_lithium_df<-PRIMARYCARE_dataset %>%
                                Region=="South West"~"UKK"),
          region = as.factor(Region)) %>%
   filter(!is.na(Region))
- 
+
 PRIMARYCARE_dataset <- PRIMARYCARE_dataset %>%
   mutate(month = as.Date(month))
- 
+
 PRIMARY_twenty_three <- PRIMARYCARE_dataset %>%
   filter(month %in% as.Date(c("2023-01-01",
                               "2023-02-01",
@@ -568,28 +554,28 @@ PRIMARY_twenty_three <- PRIMARYCARE_dataset %>%
                               "2023-10-01",
                               "2023-11-01",
                               "2023-12-01")))
- 
+
 View(PRIMARY_twenty_three)
- 
- 
+
+
 PRIMARY_twenty_three <- PRIMARY_twenty_three %>%
   mutate(twenty_three_quantity_mg = strnt_nmrtr_val * quantity)
- 
+
 # Calculate the total mg of Lithium for each region in primary care 2023
 primary_total_mg_by_region <- PRIMARY_twenty_three %>%
   group_by(Region) %>%
   summarize(total_mg_2023 = sum(twenty_three_quantity_mg, na.rm = TRUE))
- 
+
 View(primary_total_mg_by_region)
- 
+
 View(primary_lithium_df) # THIS IS the dataset i have been using for the mapping code,
- 
+
 #adding this column to of total_mg for 2023 for each region to lithium_df
 primary_lithium_df <- primary_total_mg_by_region %>%
   mutate(primary_total_mg_by_region)
- 
+
 View(primary_lithium_df)
- 
+
 # Now adding population data to this dataset, that I got from ONS statistics
 NorthEast_Yorkt_pop = 8224302
 NorthWest_pop = 7516113
@@ -598,8 +584,8 @@ east_pop = 6398497
 london_pop = 8866180
 SouthEast_pop = 9379833
 SouthWest_pop = 5764881
- 
- 
+
+
 primary_lithium_df <- primary_lithium_df %>%
   mutate(population = case_when(
     Region == "North Eastern Yorkshire" ~ NorthEast_Yorkt_pop,
@@ -610,42 +596,42 @@ primary_lithium_df <- primary_lithium_df %>%
     Region == "South East" ~ SouthEast_pop,
     Region == "South West" ~ SouthWest_pop,
   ))
- 
+
 View(primary_lithium_df)
- 
- 
+
+
 # this is what I'll be plotting - NOW calculating the total_mg_lithium(mg)/ population for the first 6 months of 2022. (Making is more specific as it was in the last mapping code the 5 years of lihtium stock)
 primary_lithium_df <- primary_lithium_df %>%
   mutate(`mg/population(2023)` = total_mg_2023 / population)
- 
+
 View(primary_lithium_df)
- 
+
 # there are differences in the  region names I need to fix, specifically in "North East & Yorkshire"/ "North Eastern Yorkshire"
 View(nuts_shp)
 View(primary_lithium_df)
- 
+
 mapping <- data.frame(
   lithium_region = c( "North Eastern Yorkshire", "London", "Midlands", "East of England", "South East", "South West", "North West"),
   nuts_shp_region = c( "North East & Yorkshire", "London", "Midlands", "East of England", "South East", "South West", "North West"),
   stringsAsFactors = FALSE
 )
- 
+
 # Join on the correct column names
 primary_lithium_df <- primary_lithium_df %>%
   left_join(mapping, by = c("Region" = "lithium_region"))
- 
- 
+
+
 # Inspect the joined dataset
 primary_coverage_data <- nuts_shp %>%
   left_join(primary_lithium_df, by = c("region" = "nuts_shp_region"))
- 
+
 View(primary_coverage_data)
- 
+
 unique_values <- sort(unique(primary_lithium_df$`mg/population(2023)`))
- 
+
 # Define labels for the legend
 legend_labels <- scales::label_number()(unique_values)
- 
+
 # Plot with specified color scale
 coverage_plot <- primary_coverage_data %>%
   ggplot(aes(geometry = geometry, fill = `mg/population(2023)`)) +
@@ -671,10 +657,10 @@ coverage_plot <- primary_coverage_data %>%
   guides(fill = guide_legend(title = "mg Lithium/ population")) +
   xlab("") +
   ylab("")
- 
+
 # Display the plot
 plot(coverage_plot)
- 
+
 # ammended hist
 hist = ggplot(primary_coverage_data, aes(x = region, y = `mg/population(2023)`)) +
   geom_col(fill = "#008080"   , color = "#E0FFFF")+  # Add border color and size
@@ -690,9 +676,9 @@ hist = ggplot(primary_coverage_data, aes(x = region, y = `mg/population(2023)`))
     plot.title = element_text(size = 12, face = "bold"),  # Adjust title size and style
     plot.margin = margin(10, 10, 10, 10)  # Adjust plot margins for better spacing
   )
- 
+
 plot(hist)
- 
+
 # plot that is more focused on the last 6 months of 2023 for primary care, fix this
 # Subset for the last 6 months of 2023
 PRIMARY_six_months <- PRIMARYCARE_dataset %>%
@@ -702,22 +688,22 @@ PRIMARY_six_months <- PRIMARYCARE_dataset %>%
                               "2023-10-01",
                               "2023-11-01",
                               "2023-12-01")))
- 
+
 # Calculate the total mg of Lithium for each region in the last 6 months
 primary_total_mg_six_months <- PRIMARY_six_months %>%
   mutate(twenty_three_quantity_mg = strnt_nmrtr_val * quantity) %>%
   group_by(Region) %>%
   summarize(total_mg_six_months = sum(twenty_three_quantity_mg, na.rm = TRUE))
- 
+
 # Add population data to the dataset focusing on the last 6 months
 primary_lithium_df_six_months <- primary_total_mg_six_months %>%
   left_join(primary_lithium_df, by = "Region") %>%
   mutate(`mg/population(2023)` = total_mg_six_months / population)
- 
- 
+
+
 # View updated dataset
 View(primary_lithium_df_six_months)
- 
+
 # Plotting the total lithium usage per population for the last 6 months
 hist2 = ggplot(primary_lithium_df_six_months, aes(x = Region, y = `mg/population(2023)`)) +
   geom_col(fill = "#17d7e6", color = "#1f77b4") +  # Add border color
