@@ -1,35 +1,35 @@
-##SECONDARY ANALYSIS:
+##SECONDARY ANALYSIS: htr
  
 # Installing packages needed:
-install.packages("tidyverse")
+# install.packages("tidyverse")
 library(tidyverse)
  
-install.packages("dplyr")
+# install.packages("dplyr")
 library(dplyr)
  
-install.packages("ggplot2")
+# install.packages("ggplot2")
 library(ggplot2)
  
-install.packages("scales")
+# install.packages("scales")
 library(scales)
  
-install.packages("sf")
+# install.packages("sf")
 library(sf)
- 
-install.packages("here")
+#  
+# install.packages("here")
 library(here)
  
-install.packages("readr")
+# install.packages("readr")
 library(readr)
  
-install.packages("data.table")
+# install.packages("data.table")
 library(data.table)
  
 # NEW DATASET TO BE WORKING FROM,
 # Originally they were 26 organisations in the unlabelled region column, and 1 NA.
 # Now using the new dataset on mergers there are 4, on thex-axis labelled region they come up as 'NA'kingdirectory = setwd("C:/Users/K22007671/OneDrive - King's College London")
 getwd()
-install.packages("readxl")
+# install.packages("readxl")
 library(readxl)
 Lithium_SCMD= read_excel('scmd_lithium-2.xlsx')
  
@@ -44,27 +44,14 @@ print(New_Missingregions)
  
 # Cleaning up dataset
 # Manually adding the regions to the organisations (4) that come up in the NA region column
+# you can do this in one mutate with case_when
 Lithium_SCMD <- Lithium_SCMD %>%
-  mutate(region = ifelse(ods_name == "Black Country Healthcare NHS Foundation Trust" & is.na(region),
-                         "West Midlands",
-                         region))
- 
-Lithium_SCMD <- Lithium_SCMD %>%
-  mutate(region = ifelse(ods_name == "Bradford District Care NHS Foundation Trust" & is.na(region),
-                         "Yorkshire and The Humber",
-                         region))
- 
-Lithium_SCMD <- Lithium_SCMD %>%
-  mutate(region = ifelse(ods_name == "Camden and Islington NHS Foundation Trust" & is.na(region),
-                         "London",
-                         region))
- 
-Lithium_SCMD <- Lithium_SCMD %>%
-  mutate(region = ifelse(ods_name == "Sheffield Health & Social Care NHS Foundation Trust" & is.na(region),
-                         "Yorkshire and The Humber",
-                         region))
- 
- 
+  mutate(region = case_when(ods_name == "Black Country Healthcare NHS Foundation Trust" & is.na(region)~"West Midlands",
+         ods_name == "Bradford District Care NHS Foundation Trust" & is.na(region)~"Yorkshire and The Humber",
+         ods_name == "Camden and Islington NHS Foundation Trust" & is.na(region)~"London",
+         ods_name == "Sheffield Health & Social Care NHS Foundation Trust" & is.na(region)~"Yorkshire and The Humber",
+         .default = region))
+         
 unique(Lithium_SCMD$region) # ALL organisations are now attributed to a region
  
 #converting from date-time to date, will make plotting easier
@@ -79,10 +66,13 @@ Lithium_SCMD <- Lithium_SCMD %>%
 # changing from 9 to 7 regions, beause the primary care dataset has 7 regions:
 # Step 1: Merging specific regions: North East and Yorkshire and the Humber and the east and west midlands
 # Replace specific regions with broader region names
-Lithium_SCMD$region_grouped <- with(Lithium_SCMD,
-                                    ifelse(region %in% c("East Midlands", "West Midlands"), "Midlands",
-                                           ifelse(region %in% c("North East", "Yorkshire and The Humber"), "North East & Yorkshire",
-                                                  region)))
+# Again I would use case_when here
+Lithium_SCMD <- Lithium_SCMD %>%
+  mutate(region_grouped = case_when(region == "East Midlands" |region == "West Midlands"~"Midlands" ,
+         region == "North East" |region == "Yorkshire and The Humber"~"North East & Yorkshire" ,
+         .default = region))
+                       
+  
 View(Lithium_SCMD)
 unique(Lithium_SCMD$region_grouped)
  
@@ -93,10 +83,11 @@ Lithium_SCMD <- Lithium_SCMD %>%
   filter(unit_dose_uom != "ampoule")
  
 # Creating a quantity_mg column for regional analysis
-quantity_mg = Lithium_SCMD$strnt_nmrtr_val * Lithium_SCMD$quantity
+# similarly could use mutate to create this in one step
+# quantity_mg = Lithium_SCMD$strnt_nmrtr_val * Lithium_SCMD$quantity
  
 Lithium_SCMD <- Lithium_SCMD %>%
-  mutate(quantity_mg = quantity_mg)
+  mutate(quantity_mg = strnt_nmrtr_val * quantity)
  
 # Secondary care regional plots:
 # Regional plot, vtm_name: Lithium carbonate vs Citrate
@@ -157,17 +148,17 @@ ggplot(top_50_data, aes(x = reorder(ods_name, total_quantity), y = quantity_mg, 
 # Secondary care Mapping plot, 2023 mg / population
 ################################################
 # NEW SHAPEFILE - it was in a python format so had to make RDS
-library(sf)
+library(sf) # Loaded above
  
 # Read the GeoJSON file
-geojson_file <- "/Users/K22007671/OneDrive - King's College London/Desktop/Research methods 1 2022/Represent/new_nuts_shp.txt"
+geojson_file <- "new_nuts_shp.txt" ## project file should direct to here
 geojson_data <- st_read(geojson_file)
  
 # Save the object as an RDS file
-saveRDS(geojson_data, file = "/Users/K22007671/OneDrive - King's College London/Desktop/Research methods 1 2022/Represent/new_nuts_shp.rds")
+saveRDS(geojson_data, file = "new_nuts_shp.rds")
  
 # Load the RDS file
-nuts_shp <- readRDS( "/Users/K22007671/OneDrive - King's College London/Desktop/Research methods 1 2022/Represent/new_nuts_shp.rds")
+nuts_shp <- readRDS( "new_nuts_shp.rds")
 View(nuts_shp)
  
 # Ensuring geometries are valid
@@ -197,18 +188,19 @@ lithium_df<-Lithium_SCMD %>%
 View(lithium_df)
  
 twenty_three <- Lithium_SCMD %>%
-  filter(year_month %in% as.Date(c("2023-01-01",
-                                   "2023-02-01",
-                                   "2023-03-01",
-                                   "2023-04-01",
-                                   "2023-05-01",
-                                   "2023-06-01",
-                                   "2023-07-01",
-                                   "2023-08-01",
-                                   "2023-09-01",
-                                   "2023-10-01",
-                                   "2023-11-01",
-                                   "2023-12-01")))
+ filter(between(year_month, as.Date('2023-01-01'), as.Date('2023-12-01')))
+  # filter(year_month %in% as.Date(c("2023-01-01",
+  #                                  "2023-02-01",
+  #                                  "2023-03-01",
+  #                                  "2023-04-01",
+  #                                  "2023-05-01",
+  #                                  "2023-06-01",
+  #                                  "2023-07-01",
+  #                                  "2023-08-01",
+  #                                  "2023-09-01",
+  #                                  "2023-10-01",
+  #                                  "2023-11-01",
+  #                                  "2023-12-01")))
  
  
 View(twenty_three)
@@ -228,6 +220,7 @@ secondary_lithium_df <- lithium_df %>%
  
  
 # Now adding population data to this dataset, that I got from population_data, estimates from ONS
+# It would be better to pull these in directly from the excel files. Less chance of a transcription error and easier to update to a different ONS year
 NorthEast_Yorkt_pop = 8224302
 NorthWest_pop = 7516113
 midlands_pop = 10956592
@@ -276,7 +269,7 @@ mapping_table <- tibble(
   )
 )
  
-library(dplyr)
+library(dplyr) # loaded above
  
 # Join nuts_shp with the mapping table
 nuts_shp <- nuts_shp %>%
